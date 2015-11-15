@@ -1,0 +1,105 @@
+#!/bin/sh
+
+: <<EOF
+
+=head1 NAME
+
+tcp - Plugin to monitor IPV4 TCP socket queue on a Linux host.
+
+=head1 AUTHOR
+
+Copyright 2014 Michal Ajduk <majduk@sgmail.com>
+
+=head1 LICENSE
+
+GPLv2
+
+=begin comment
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; version 2 dated June, 1991.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=end comment
+
+=head1 MAGIC MARKERS
+
+ #%# family=manual
+ #%# capabilities=autoconf
+
+=cut
+
+EOF
+PORT=${0##*/tcp_q_}
+
+case $1 in
+    config)
+        cat <<EOF
+graph_title TCP
+graph_vlabel TCP port $PORT queue
+graph_category network
+graph_args -l 0
+graph_info TCP queue sizes for port $PORT
+EOF
+
+			echo src_recvq.label "Source port $PORT receive queue"
+			echo src_recvq.info "Source port $PORT receive queue"
+			echo src_sendq.label "Source port $PORT send queue"
+			echo src_sendq.info "Source port $PORT send queue"
+
+			echo dst_recvq.label "Destination port $PORT receive queue"
+			echo dst_recvq.info "Destination port $PORT receive queue"
+			echo dst_sendq.label "Destination port $PORT send queue"
+			echo dst_sendq.info "Destination port $PORT send queue"      
+      
+        exit 0
+		;;
+    autoconf)
+        if [ -f /proc/net/tcp ]
+		then
+			echo yes
+			exit 0
+		else
+			echo no
+			exit 1
+		fi
+esac
+
+rxfile=/tmp/tcp_q_rx_${RANDOM}
+txfile=/tmp/tcp_q_rx_${RANDOM}
+ss -nt "( sport = :$PORT )" > $txfile
+ss -nt "( dport = :$PORT )" > $rxfile
+   
+cat $rxfile | awk '
+  match ($3, /[0-9]+/) {
+      recvq+=$2;
+      sendq+=$3;
+  }
+  END { 
+      printf "dst_recvq.value %d\n",recvq;
+      printf "dst_sendq.value %d\n",sendq;
+  }'
+
+cat $txfile | awk '
+  match ($3, /[0-9]+/) {
+      recvq+=$2;
+      sendq+=$3;
+  }
+  END { 
+      printf "src_recvq.value %d\n",recvq;
+      printf "src_sendq.value %d\n",sendq;
+  }'
+
+
+test -f $rxfile | rm -f $rxfile
+test -f $txfile | rm -f $txfile
+exit 0
