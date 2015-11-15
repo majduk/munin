@@ -67,6 +67,36 @@ This is a wildcard plugin to monitor TCP socket queue size for specified port. Q
 DLM (distributed lock manager) is used by the RedHat Clustered file system (GFS2).
 
 * Enable monitoring of tcp port 21064
-`ln -s '/usr/local/share/munin/plugins/port_' '/usr/local/etc/munin/plugins/port_21064'`
+`ln -s '/usr/local/share/munin/plugins/port_' '/etc/munin/plugins/port_21064'`
 
+## Dell Storage Monitoring
+The MD3000i does not expose any performance data via SNMP. You can use "SMCli" which comes on the resource CD to get some basic stats from the MD3000i. 
+
+`/opt/dell/mdstoragemanager/client/SMcli <IP> -S -quick -c "show virtualDisk [diskname] performanceStats;"` 
+
+The output looks like this: 
+```
+"Performance Monitor Statistics for Storage Array: md3000i - Date/Time: 8/31/09 1:38:39 PM - Polling interval in seconds: 5" 
+
+"Storage Arrays ","Total IOs ","Read Percentage ","Cache Hit Percentage ","Current KB/second ","Maximum KB/second ","Current IO/second ","Maximum IO/second" 
+
+"Capture Iteration: 1","","","","","","","" 
+"Date/Time: 8/31/09 1:38:39 PM","","","","","","","" 
+"CONTROLLER IN SLOT 0","106.0","3.8","25.0","161.6","161.6","21.2","21.2" 
+"Virtual Disk diskname","106.0","3.8","25.0","161.6","161.6","21.2","21.2" 
+"CONTROLLER IN SLOT 1","0.0","0.0","0.0","0.0","0.0","0.0","0.0" 
+"STORAGE ARRAY TOTALS","106.0","3.8","25.0","161.6","161.6","21.2","21.2" 
+```
+
+The status returned is for the last 5 seconds only. No counters are available.
+
+Enable:
+`ln -s '/usr/local/share/munin/plugins/md3200' '/etc/munin/plugins/md3200'`
+Add configuration to /etc/munin/plugins/md3200:
+```
+[md3200]
+  env.host 192.168.0.1
+  env.smlcli /opt/dell/mdstoragemanager/client/SMcli
+  env.disk disk1
+```
 

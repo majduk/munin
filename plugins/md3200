@@ -1,0 +1,119 @@
+#!/usr/bin/perl -w
+
+=head1 NAME
+
+md3200 - Munin plugin to monitor Dell MD3200 storage array.
+
+=head1 DESCRIPTION
+The MD3000i does not expose any performance data via SNMP. You can use SMCli which comes on the resource CD to get some basic stats from the MD3000i. 
+
+/opt/dell/mdstoragemanager/client/SMcli <IP> -S -quick -c show virtualDisk [diskname] performanceStats; 
+
+The output looks like this: 
+
+=head1 CONFIGURATION
+
+[md3200]
+  env.host 192.168.0.1
+  env.smlcli /opt/dell/mdstoragemanager/client/SMcli
+  env.disk disk1
+
+=head1 MAGIC MARKERS
+
+  #%# family=manual
+  #%# capabilities=autoconf suggest
+
+=head1 AUTHOR
+
+Michal Ajduk
+
+=head1 LICENSE
+
+GPLv2
+
+=cut
+
+use Munin::Plugin;
+use strict;
+
+if ($ARGV[0] and $ARGV[0] =~ /^\s*config\s*$/i)
+{
+	  print "graph_title $name connection count\n";
+    print "graph_args --base 1000 -l 0\n";
+    print "graph_vlabel concurrent connections\n";
+    print "graph_category network\n";
+    print "count.label $name\n";
+    exit 0;
+}
+
+my $SMcli="/opt/dell/mdstoragemanager/client/SMcli";
+my ($x,$host,$vm,$arg,$find_only);
+for $x ( 0 .. $#ARGV ){
+
+  $arg = $ARGV[$x];
+
+  if ( $arg eq "-H" ){
+    $find_only = 1;
+    $x++;
+    $host = ${ARGV[$x]};
+    next;
+    }
+
+  if ( $arg eq "-v" ){
+    $x++;
+    $vm = ${ARGV[$x]};
+    next;
+    }
+
+  }
+
+#Execute SMcli command
+my $cmd = "$SMcli $host -S -quick -c \"show virtualDisk [\\\"$vm\\\"] performanceStats;\"";
+#print "$cmd \n";
+
+if(!open(PIPE, "$cmd|"))
+{
+	die("Could not execute $cmd");
+}
+
+my $globalstatus = "";
+my $extendedstatus = "";
+my $vmdisk = "";
+my $totalio = "";
+my $readpercentage = "";
+my $cachehitpercentage = "";
+my $currentkbpersecond = "";
+my $maximumkbpersecond = "";
+my $currentiopersecond = "";
+my $maximumiopersecond = "";
+while(my $line = <PIPE>)
+{
+        chomp($line);
+        if($line =~ /Virtual Disk/)
+        {
+                $globalstatus = $line;
+#		print "\"Storage Arrays \",\"Total IOs \",\"Read Percentage \",\"Cache Hit Percentage \",\"Current KB/second \",\"Maximum KB/second \",\"Current IO/second \",\"Maximum IO/second\" \n";
+#		print "$line \n";
+	($vmdisk, $totalio, $readpercentage, $cachehitpercentage, $currentkbpersecond, $maximumkbpersecond, $currentiopersecond, $maximumiopersecond) = split (",", $line);
+	$totalio =~ s/\"//g;
+	$readpercentage =~ s/\"//g;
+	$cachehitpercentage =~ s/\"//g;
+	$currentkbpersecond =~ s/\"//g;
+	$maximumkbpersecond =~ s/\"//g;
+	$currentiopersecond =~ s/\"//g;
+	$maximumiopersecond =~ s/\"//g;
+
+	print "totalio:$totalio readpercentage:$readpercentage cachehitpercentage:$cachehitpercentage currentkbpersecond:$currentkbpersecond maximumkbpersecond:$maximumkbpersecond currentiopersecond:$currentiopersecond maximumiopersecond:$maximumiopersecond";
+	
+
+
+
+        }
+        else
+        {
+                $extendedstatus .= $line;
+        }
+}
+
+
+close(PIPE);
