@@ -1,0 +1,6 @@
+#This configuration snipplet is an example with the defaults:
+#Might not work on some versions of df plugin
+  [df]
+    env.exclude tmpfs none unknown rootfs iso9660 squashfs udf romfs ramfs debugfs cgroup_root devtmpfs
+    env.warning 92
+    env.critical 98

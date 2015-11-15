@@ -1,0 +1,13 @@
+#http://gallery.munin-monitoring.org/distro/plugins/node.d.linux/diskstats.html
+
+#monitor specific devices
+# You can specify which devices should get monitored by the plugin via environment 
+# variables. The variables are mutually exclusive and should contain a comma-separated 
+# list of device names. Partial names (e.g. 'sd' or 'dm-') are okay.
+# LVM volumes can be filtered either by their canonical names or their internal 
+# device-mapper based names (e.g. 'dm-3', see dmsetup(8) for further information).
+
+[diskstats]
+    env.include_only sda,sdb
+    
+    

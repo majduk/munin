@@ -1,0 +1,10 @@
+#http://gallery.munin-monitoring.org/distro/plugins/node.d.linux/ip_
+#ln -s '/usr/local/share/munin/plugins/ip_' '/usr/local/etc/munin/plugins/ip_192.168.0.1'
+
+#Example configuration follows.  Only the first stanza is needed:
+
+  [ip_*]
+    user root
+
+  [ip_192.168.0.1]
+    env.hostname host.example.com

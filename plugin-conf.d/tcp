@@ -1,0 +1,3 @@
+#plugin to monitor tcp stats
+#enable:
+#ln -s '/usr/local/share/munin/plugins/tcp' '/etc/munin/plugins/tcp'
