@@ -1,0 +1,14 @@
+[md3200*]
+  env.controller controller1
+  env.smcli /opt/dell/mdstoragesoftware/mdstoragemanager/client/SMcli
+  env.disk disk1
+  user root
+
+[md3200_p*]
+  env.type percentage
+
+[md3200_t*]
+  env.type throughput
+
+[md3200_i*]
+  env.type iops
