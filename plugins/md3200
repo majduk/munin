@@ -14,7 +14,7 @@ The output looks like this:
 =head1 CONFIGURATION
 
 [md3200]
-  env.host 192.168.0.1
+  env.controller 192.168.0.1
   env.smlcli /opt/dell/mdstoragemanager/client/SMcli
   env.disk disk1
 
@@ -36,40 +36,41 @@ GPLv2
 use Munin::Plugin;
 use strict;
 
+my $SMcli = $ENV{'smcli'} ? $ENV{'smcli'} : "/opt/dell/mdstoragesoftware/mdstoragemanager/client/SMcli";
+my $host = $ENV{'controller'} ? $ENV{'controller'} : "md3200";
+my $vdisk = $ENV{'disk'} ? $ENV{'disk'} : "disk1";
+my $type = $ENV{'type'} ? $ENV{'type'} : "iops";
+my $debug = $ENV{'debug'} ? $ENV{'debug'} : 0;
+
 if ($ARGV[0] and $ARGV[0] =~ /^\s*config\s*$/i)
 {
-	  print "graph_title $name connection count\n";
+	  print "graph_title Storage $vdisk\n";
     print "graph_args --base 1000 -l 0\n";
-    print "graph_vlabel concurrent connections\n";
-    print "graph_category network\n";
-    print "count.label $name\n";
+    print "graph_vlabel $type\n";
+    print "graph_category disk\n";
+    if($type eq "percentage"){      
+      print "readpercentage.label Read Percentage\n"; 
+      print "cachehitpercentage.label Cache Hit Percentage\n";     
+    }
+    if($type eq "throughput"){
+      print "currentkbpersecond.label Current KB/second\n"; 
+      print "maximumkbpersecond.label Maximum KB/second\n";   
+    }
+    if($type eq "iops"){
+      print "totalio.label Total IO\n";
+      print "currentiopersecond.label Current IO/second\n"; 
+      print "maximumiopersecond.label Maximum IO/second\n";  
+    }         
     exit 0;
 }
 
-my $SMcli="/opt/dell/mdstoragemanager/client/SMcli";
-my ($x,$host,$vm,$arg,$find_only);
-for $x ( 0 .. $#ARGV ){
 
-  $arg = $ARGV[$x];
-
-  if ( $arg eq "-H" ){
-    $find_only = 1;
-    $x++;
-    $host = ${ARGV[$x]};
-    next;
-    }
-
-  if ( $arg eq "-v" ){
-    $x++;
-    $vm = ${ARGV[$x]};
-    next;
-    }
-
-  }
 
 #Execute SMcli command
-my $cmd = "$SMcli $host -S -quick -c \"show virtualDisk [\\\"$vm\\\"] performanceStats;\"";
-#print "$cmd \n";
+my $cmd = "$SMcli $host -S -quick -c \"show virtualDisk [\\\"$vdisk\\\"] performanceStats;\"";
+if ($debug){
+  print STDERR "$cmd \n";
+}
 
 if(!open(PIPE, "$cmd|"))
 {
@@ -88,12 +89,13 @@ my $currentiopersecond = "";
 my $maximumiopersecond = "";
 while(my $line = <PIPE>)
 {
+      if ($debug){
+        print STDERR "$line\n";
+      }
         chomp($line);
         if($line =~ /Virtual Disk/)
         {
                 $globalstatus = $line;
-#		print "\"Storage Arrays \",\"Total IOs \",\"Read Percentage \",\"Cache Hit Percentage \",\"Current KB/second \",\"Maximum KB/second \",\"Current IO/second \",\"Maximum IO/second\" \n";
-#		print "$line \n";
 	($vmdisk, $totalio, $readpercentage, $cachehitpercentage, $currentkbpersecond, $maximumkbpersecond, $currentiopersecond, $maximumiopersecond) = split (",", $line);
 	$totalio =~ s/\"//g;
 	$readpercentage =~ s/\"//g;
@@ -103,17 +105,22 @@ while(my $line = <PIPE>)
 	$currentiopersecond =~ s/\"//g;
 	$maximumiopersecond =~ s/\"//g;
 
-	print "totalio:$totalio readpercentage:$readpercentage cachehitpercentage:$cachehitpercentage currentkbpersecond:$currentkbpersecond maximumkbpersecond:$maximumkbpersecond currentiopersecond:$currentiopersecond maximumiopersecond:$maximumiopersecond";
-	
-
-
-
-        }
-        else
-        {
-                $extendedstatus .= $line;
+    if($type eq "percentage"){
+      print "readpercentage.value $readpercentage\n"; 
+      print "cachehitpercentage.value $cachehitpercentage\n";     
+    }
+    if($type eq "throughput"){
+      print "currentkbpersecond.value $currentkbpersecond\n"; 
+      print "maximumkbpersecond.value $maximumkbpersecond\n";   
+    }
+    if($type eq "iops"){
+      print "totalio.value $totalio\n";    
+      print "currentiopersecond.value $currentiopersecond\n"; 
+      print "maximumiopersecond.value $maximumiopersecond\n";  
+    }   
         }
 }
 
 
 close(PIPE);
+exit 0;
