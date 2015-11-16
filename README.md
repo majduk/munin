@@ -95,8 +95,8 @@ Enable:
 Add configuration to /etc/munin/plugins/md3200:
 ```
 [md3200]
-  env.host 192.168.0.1
-  env.smlcli /opt/dell/mdstoragemanager/client/SMcli
+  env.controller 192.168.0.1
+  env.smcli /opt/dell/mdstoragemanager/client/SMcli
   env.disk disk1
 ```
 
