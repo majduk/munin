@@ -1,0 +1,355 @@
+#!/bin/sh
+: <<EOF
+
+=head1 NAME
+
+gfs2 - Plugin to monitor RedHat GFS2 statistics. Requires mounted debugfs
+
+=head1 CONFIGURATION
+This plugin does not normaly require configuration. This is a wildcard plugin to fetch GFS2 debugfs counters.
+
+This plugin should be linked as:
+gfs2_${mode}_${data}_${filesystem}
+
+Where:
+mode - glocks or holders
+data - state type flag. Type only for glocks
+
+Example:
+gfs2_glocks_state_cluster:lunLogVol01
+
+Documentation:
+http://lxr.free-electrons.com/source/Documentation/filesystems/gfs2-glocks.txt
+https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/6/html/Global_File_System_2/ap-glock-debugfs-gfs2.html
+
+Example GLOCK row:
+G:  s:SH n:5/35d45b f:Iqob t:SH d:EX/0 a:0 v:0 r:2 m:200
+
+Example HOLDER row:
+ H: s:SH f:EH e:0 p:42961 [(ended)] gfs2_inode_lookup+0x121/0x230 [gfs2]
+
+There:
+  s: glock states are either
+    EX (exclusive),
+    DF (deferred),
+    SH (shared) or
+    UN (unlocked).
+    In the holder indicates the requested mode. In the holder if the lock is granted, the
+    holder will have the H bit set in its flags (f: field). Otherwise, it will have the W wait bit set.
+  n: field (number) indicates the number associated with each item. (type)/number
+      Type number       Lock type       Use
+      1 trans   Transaction lock
+      2 inode   Inode metadata and data
+      3 rgrp    Resource group metadata
+      4 meta    The superblock
+      5 iopen   Inode last closer detection
+      6 flock   flock(2) syscall
+      8 quota   Quota operations
+      9 journal Journal mutex
+  f: Flags
+      Glock Flag        Name    Meaning
+        d       Pending demote  A deferred (remote) demote request
+        D       Demote  A demote request (local or remote)
+        f       Log flush       The log needs to be committed before releasing this glock
+        F       Frozen  Replies from remote nodes ignored - recovery is in progress.
+        i       Invalidate in progress  In the process of invalidating pages under this glock
+        I       Initial Set when DLM lock is associated with this glock
+        l       Locked  One of the more important glock flags is the l (locked) flag. The glock is in the process of changing state
+        L       LRU     Set when the glock is on the LRU list
+        o       Object  Set when the glock is associated with an object (that is, an inode for type 2 glocks, and a resource group for type 3 glocks)
+        p       Demote in progress      The glock is in the process of responding to a demote request
+        q       Queued  Set when a holder is queued to a glock, and cleared when the glock is held, but there are no remaining holders. Used as part of the algorithm the calculates the minimum hold time for a glock.
+        r       Reply pending   Reply received from remote node is awaiting processing
+        y       Dirty   Data needs flushing to disk before releasing this glock
+      Holder Flag       Name    Meaning
+        a       Async   Do not wait for glock result (will poll for result later)
+        A       Any     Any compatible lock mode is acceptable
+        c       No cache        When unlocked, demote DLM lock immediately
+        e       No expire       Ignore subsequent lock cancel requests
+        E       Exact   Must have exact lock mode
+        F       First   Set when holder is the first to be granted for this lock
+        H       Holder  Indicates that requested lock is granted
+        p       Priority        Enqueue holder at the head of the queue
+        t       Try     A "try" lock
+        T       Try 1CB A "try" lock that sends a callback
+        W       Wait    Set while waiting for request to complete
+
+
+=head1 AUTHOR
+
+Copyright 2015 Michal Ajduk <majduk@gmail.com>
+
+=head1 LICENSE
+
+GPLv2
+
+=begin comment
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; version 2 dated June, 1991.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+USA.
+
+=end comment
+
+=head1 MAGIC MARKERS
+
+ #%# family=manual
+ #%# capabilities=autoconf
+
+=cut
+
+EOF
+
+argstring=${0##*/gfs2_}
+read mode data FILESYSTEM <<< $( echo "$argstring" | awk -F'_' '{print $1 " " $2 " " $3}' )
+LOCKSFILE=/sys/kernel/debug/gfs2/${FILESYSTEM}/glocks
+
+case $1 in
+    config)
+      if [ -f ${LOCKSFILE} ];then
+        cat <<EOD
+graph_vlabel count
+graph_category disk
+graph_args --base 1000 -l 0
+graph_title GFS2 ${FILESYSTEM} ${mode} ${data}
+graph_info GFS2 ${FILESYSTEM} ${mode} ${data} count
+EOD
+
+if [ "$data" == "state" ];then
+cat <<EOD
+graph_total Total
+exclusive.label exclusive
+exclusive.info  EX (exclusive) locks count
+exclusive.draw AREA
+deferred.label deferred
+deferred.info DF (deferred) locks count
+deferred.draw STACK
+shared.label shared
+shared.info SH (shared) locks count
+shared.draw STACK
+unlocked.label unlocked
+unlocked.info UN (unlocked) locks count
+unlocked.draw STACK
+EOD
+fi
+if [ "$data" == "type" ];then
+cat <<EOD
+graph_total Total
+type_trans.label type_trans
+type_trans.info 1       trans   Transaction lock count
+type_trans.draw AREA
+type_inode.label type_inode
+type_inode.info 2       inode   Inode metadata and data lock count
+type_inode.draw STACK
+type_rgrp.label type_rgrp
+type_rgrp.info 3        rgrp    Resource group metadata lock count
+type_rgrp.draw STACK
+type_meta.label type_meta
+type_meta.info 4        meta    The superblock lock count
+type_meta.draw STACK
+type_iopen.label type_iopen
+type_iopen.info 5       iopen   Inode last closer detection lock count
+type_iopen.draw STACK
+type_flock.label type_flock
+type_flock.info 6       flock   flock(2) syscall lock count
+type_flock.draw STACK
+type_quota.label type_quota
+type_quota.info 8       quota   Quota operations lock count
+type_quota.draw STACK
+type_journal.label type_journal
+type_journal.info 9     journal Journal mutex lock count
+type_journal.draw STACK
+EOD
+fi
+if [ "$data" == "flag" ];then
+  if [ "$mode" == "glocks" ];then
+  cat <<EOD
+glocks_total.label Total $mode
+glocks_total.info Total $mode count
+flag_d_pending_demote.label flag_d_pending_demote
+flag_d_pending_demote.info Pending demote:      A deferred (remote) demote request
+flag_D_demote.label flag_D_demote
+flag_D_demote.info Demote:      A demote request (local or remote)
+flag_f_flush.label flag_f_flush
+flag_f_flush.info Log flush:    The log needs to be committed before releasing this glock
+flag_F_frozen.label flag_F_frozen
+flag_F_frozen.info Frozen:      Replies from remote nodes ignored - recovery is in progress.
+flag_i_invalidate.label flag_i_invalidate
+flag_i_invalidate.info Invalidate in progress:  In the process of invalidating pages under this glock
+flag_I_initial.label flag_I_initial
+flag_I_initial.info Initial:    Set when DLM lock is associated with this glock
+flag_l_locked.label flag_l_locked
+flag_l_locked.info Locked:      One of the more important glock flags is the l (locked) flag. The glock is in the process of changing state
+flag_L_LRU.label flag_L_LRU
+flag_L_LRU.info LRU     Set: when the glock is on the LRU list
+flag_o_object.label flag_o_object
+flag_o_object.info Object       Set: when the glock is associated with an object (that is, an inode for type 2 glocks, and a resource group for type 3 glocks)
+flag_p_demoting.label flag_p_demoting
+flag_p_demoting.info Demote in progress:        The glock is in the process of responding to a demote request
+flag_q_queued.label flag_q_queued
+flag_q_queued.info Queued       Set: when a holder is queued to a glock, and cleared when the glock is held, but there are no remaining holders. Used as part of the algorithm the calculates the minimum hold time for a glock.
+flag_r_replying.label flag_r_replying
+flag_r_replying.info Reply pending:     Reply received from remote node is awaiting processing
+flag_y_dirty_data.label flag_y_dirty_data
+flag_y_dirty_data.info Dirty:   Data needs flushing to disk before releasing this glock
+EOD
+  fi
+  if [ "$mode" == "holders" ];then
+  cat <<EOD
+glocks_total.label Total $mode
+glocks_total.info Total $mode count
+flag_a_async.label flag_a_async
+flag_a_async.info Async:        Do not wait for glock result (will poll for result later)
+flag_A_any.label flag_A_any
+flag_A_any.info Any:    Any compatible lock mode is acceptable
+flag_c_no_cache.label flag_c_no_cache
+flag_c_no_cache.info No cache:  When unlocked, demote DLM lock immediately
+flag_e_no_expire.label flag_e_no_expire
+flag_e_no_expire.info No expire:        Ignore subsequent lock cancel requests
+flag_E_extract.label flag_E_extract
+flag_E_extract.info Exact:      Must have exact lock mode
+flag_F_first.label flag_F_first
+flag_F_first.info First:        Set when holder is the first to be granted for this lock
+flag_H_holder.label flag_H_holder
+flag_H_holder.info Holder:      Indicates that requested lock is granted
+flag_p_priority.label flag_p_priority
+flag_p_priority.info Priority:  Enqueue holder at the head of the queue
+flag_t_try.label flag_t_try
+flag_t_try.info Try:    A try lock
+flag_T_try_1CB.label flag_T_try_1CB
+flag_T_try_1CB.info Try 1CB:    A try lock that sends a callback
+flag_W_wait.label flag_W_wait
+flag_W_wait.info Wait: Set while waiting for request to complete
+EOD
+  fi
+fi
+        exit 0
+      else
+        >&2 echo "No such file: \"${LOCKSFILE}\""
+        exit 11;
+      fi
+                ;;
+    autoconf)
+        if [ -d /sys/kernel/debug/gfs2 ]
+                then
+                        echo yes
+                        exit 0
+                else
+                        echo no
+                        exit 1
+                fi
+esac
+
+if [ -f ${LOCKSFILE} ];then
+  if [ "$mode" == "glocks" ];then
+      cat ${LOCKSFILE} | awk -v data=$data '
+        /^G:/{
+          state = substr($2,3,2);
+          type = substr($3,3,1);
+          flags = substr($4,3);
+          #print("state:" state " flag:" flags " type:" type);
+          glocks++;
+          if(data=="state"){
+            glock_states[state]++;
+          }
+          if(data=="type"){
+            glock_types[type]++;
+          }
+          if(data=="flag"){
+            for(i = 1;i <= length(flags); i++) {
+              flag = substr(flags,i,1);
+              glock_flags[flag]++;
+            }
+          }
+        }
+        END {
+            if(data=="state"){
+            printf "exclusive.value %d\n", glock_states["EX"];
+            printf "deferred.value %d\n", glock_states["DF"];
+            printf "shared.value %d\n", glock_states["SH"];
+            printf "unlocked.value %d\n", glock_states["UN"];
+            }
+            if(data=="type"){
+            printf "type_trans.value %d\n", glock_types["1"];
+            printf "type_inode.value %d\n", glock_types["2"];
+            printf "type_rgrp.value %d\n", glock_types["3"];
+            printf "type_meta.value %d\n", glock_types["4"];
+            printf "type_iopen.value %d\n", glock_types["5"];
+            printf "type_flock.value %d\n", glock_types["6"];
+            printf "type_quota.value %d\n", glock_types["8"];
+            printf "type_journal.value %d\n", glock_types["9"];
+            }
+            if(data=="flag"){
+            printf "glocks_total.value %d\n", glocks;
+            printf "flag_d_pending_demote.value %d\n", glock_flags["d"];
+            printf "flag_D_demote.value %d\n", glock_flags["D"];
+            printf "flag_f_flush.value %d\n", glock_flags["f"];
+            printf "flag_F_frozen.value %d\n", glock_flags["F"];
+            printf "flag_i_invalidate.value %d\n", glock_flags["i"];
+            printf "flag_I_initial.value %d\n", glock_flags["I"];
+            printf "flag_l_locked.value %d\n", glock_flags["l"];
+            printf "flag_L_LRU.value %d\n", glock_flags["L"];
+            printf "flag_o_object.value %d\n", glock_flags["o"];
+            printf "flag_p_demoting.value %d\n", glock_flags["p"];
+            printf "flag_q_queued.value %d\n", glock_flags["q"];
+            printf "flag_r_replying.value %d\n", glock_flags["r"];
+            printf "flag_y_dirty_data.value %d\n", glock_flags["y"];
+            }
+        }'
+  fi
+  if [ "$mode" == "holders" ];then
+      cat ${LOCKSFILE} | awk -v data=$data '
+        /^ H:/{
+          state = substr($2,3,2);
+          flags = substr($3,3);
+          #print("state:" state " flag:" flags);
+          glocks++;
+          if(data=="state"){
+            glock_states[state]++;
+          }
+          if(data=="flag"){
+            for(i = 1;i <= length(flags); i++) {
+              flag = substr(flags,i,1);
+              glock_flags[flag]++;
+            }
+          }
+        }
+        END {
+            if(data=="state"){
+              printf "exclusive.value %d\n", glock_states["EX"];
+              printf "deferred.value %d\n", glock_states["DF"];
+              printf "shared.value %d\n", glock_states["SH"];
+              printf "unlocked.value %d\n", glock_states["UN"];
+            }
+            if(data=="flag"){
+              printf "glocks_total.value %d\n", glocks;
+              printf "flag_a_async.value %d\n", glock_flags["a"];
+              printf "flag_A_any.value %d\n", glock_flags["A"];
+              printf "flag_c_no_cache.value %d\n", glock_flags["c"];
+              printf "flag_e_no_expire.value %d\n", glock_flags["e"];
+              printf "flag_E_extract.value %d\n", glock_flags["E"];
+              printf "flag_F_first.value %d\n", glock_flags["F"];
+              printf "flag_H_holder.value %d\n", glock_flags["H"];
+              printf "flag_p_priority.value %d\n", glock_flags["p"];
+              printf "flag_t_try.value %d\n", glock_flags["t"];
+              printf "flag_T_try_1CB.value %d\n", glock_flags["T"];
+              printf "flag_W_wait.value %d\n", glock_flags["W"];
+            }
+        }'
+  fi
+  exit 0
+else
+    >&2 echo "No such file: \"${LOCKSFILE}\""
+    exit 12;
+fi
+
