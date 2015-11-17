@@ -69,6 +69,26 @@ DLM (distributed lock manager) is used by the RedHat Clustered file system (GFS2
 * Enable monitoring of tcp port 21064
 `ln -s '/usr/local/share/munin/plugins/port_' '/etc/munin/plugins/port_21064'`
 
+## GFS monitoring
+
+Use wildcard gfs2_ plugin from this repo:
+This plugin does not normaly require configuration. This is a wildcard plugin to fetch GFS2 debugfs counters.
+
+This plugin should be linked as:
+gfs2_${mode}_${data}_${filesystem}
+
+Where:
+mode - glocks or holders 
+data - state type flag. Type only for glocks
+
+Example:
+`ln -s '/usr/local/share/munin/plugins/gfs2_' '/etc/munin/plugins/gfs2_glocks_state_cluster:lunLogVol01'`
+
+Documentation:
+http://lxr.free-electrons.com/source/Documentation/filesystems/gfs2-glocks.txt
+https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/6/html/Global_File_System_2/ap-glock-debugfs-gfs2.html
+
+
 ## Dell Storage Monitoring
 The MD3000i does not expose any performance data via SNMP. You can use "SMCli" which comes on the resource CD to get some basic stats from the MD3000i. 
 
