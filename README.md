@@ -20,6 +20,14 @@ ln -s '/usr/local/share/munin/plugins/if_' '/etc/munin/plugins/if_enp0s3'
 
 Plugins are configured using env variables. Put plugin config files to files in /etc/munin/plugin-conf.d
 
+Configuring plugin timeout: 
+```
+[myplugin*]
+  timeout 60
+  user root
+
+```
+
 ## Testing plugins
 
 You can run specific plugin with the config issuing:
