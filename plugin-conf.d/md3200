@@ -2,6 +2,7 @@
   env.controller controller1
   env.smcli /opt/dell/mdstoragesoftware/mdstoragemanager/client/SMcli
   env.disk disk1
+  timeout 60
   user root
 
 [md3200_p*]
